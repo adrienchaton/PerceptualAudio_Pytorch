@@ -30,7 +30,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--GPU_id',type=int,default=0)
 parser.add_argument('--mname',type=str,default='scratchJNDdefault')
 parser.add_argument('--epochs',type=int,default=1000)
-parser.add_argument('--bs',type=int,default=64)
+parser.add_argument('--bs',type=int,default=16)
 parser.add_argument('--lr',type=float,default=0.0001)
 parser.add_argument('--nconv',type=int,default=14)
 parser.add_argument('--nchan',type=int,default=32)
@@ -38,7 +38,7 @@ parser.add_argument('--dist_dp',type=float,default=0.1)
 parser.add_argument('--nhiddens',type=int,default=3)
 parser.add_argument('--ndim',type=int,default=64)
 parser.add_argument('--classif_dp',type=float,default=0.1)
-parser.add_argument('--Lsize',type=int,default=22050)
+parser.add_argument('--Lsize',type=int,default=40000)
 parser.add_argument('--shift',type=int,default=1)
 parser.add_argument('--sub',type=int,default=-1)
 args = parser.parse_args()
@@ -56,7 +56,7 @@ batch_size = args.bs
 lr = args.lr
 
 lr_step = 25
-lr_decay = 0.97
+lr_decay = 0.98
 
 print('\nTRAINING '+mname+' for epochs,batch_size,lr')
 print(epochs,batch_size,lr)
@@ -77,7 +77,7 @@ Lsize = args.Lsize
 print('audio input size at training == ',Lsize)
 # shorter segments are discarded ; longer segments are chunked in multiples of Lsize
 shift = args.shift
-n_shift = 1000
+n_shift = 4000
 if shift==1:
     print('at training, xref or xper can be randomly shifted by '+str(n_shift)+' samples ~ ',n_shift/22050)
 
