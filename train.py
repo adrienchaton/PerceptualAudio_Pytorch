@@ -1,6 +1,6 @@
 '''
 pytorch implementation Adrien Bitton
-link:
+link: https://github.com/adrienchaton/PerceptualAudio_pytorch
 paper codes Pranay Manocha
 link: https://github.com/pranaymanocha/PerceptualAudio
 '''
