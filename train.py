@@ -16,7 +16,7 @@ from models import JNDnet
 from utils import print_time,import_data,loss_plot,acc_plot,eval_scores
 
 
-np.random.seed(666)
+np.random.seed(808) #606
 try:
     torch.backends.cudnn.benchmark = True
 except:
@@ -29,22 +29,23 @@ except:
 parser = argparse.ArgumentParser()
 parser.add_argument('--GPU_id',type=int,default=0)
 parser.add_argument('--mname',type=str,default='scratchJNDdefault')
-parser.add_argument('--epochs',type=int,default=1000)
+parser.add_argument('--epochs',type=int,default=2000)
 parser.add_argument('--bs',type=int,default=16)
 parser.add_argument('--lr',type=float,default=0.0001)
-parser.add_argument('--nconv',type=int,default=14)
-parser.add_argument('--nchan',type=int,default=32)
-parser.add_argument('--dist_dp',type=float,default=0.1)
-parser.add_argument('--nhiddens',type=int,default=3)
-parser.add_argument('--ndim',type=int,default=64)
-parser.add_argument('--classif_dp',type=float,default=0.1)
-parser.add_argument('--Lsize',type=int,default=40000)
-parser.add_argument('--shift',type=int,default=1)
-parser.add_argument('--sub',type=int,default=-1)
+parser.add_argument('--wdec',type=float,default=0.0001) # weight decay for optimizer
+parser.add_argument('--nconv',type=int,default=14) # lossnet convolution depth
+parser.add_argument('--nchan',type=int,default=32) # first channel dimension, to be doubled every 5 layers
+parser.add_argument('--dist_dp',type=float,default=0.05) # droupout ratio in lossnet
+parser.add_argument('--dist_sig',type=int,default=1) # 1 if applying sigmoid to the distance before classifier
+                                                     # or 2 if applying tanh
+parser.add_argument('--ndim0',type=int,default=16) # first hidden size of the classifier
+parser.add_argument('--ndim1',type=int,default=6) # second hidden size of the classifier
+parser.add_argument('--classif_dp',type=float,default=0.05) # droupout ratio in classifnet
+parser.add_argument('--classif_BN',type=int,default=1) # 1 if classifnet with batch-norm
+parser.add_argument('--Lsize',type=int,default=40000) # input signal size of lossnet
+parser.add_argument('--shift',type=int,default=1) # 1 if randomly shifting signals to encourage shift invariance
+parser.add_argument('--sub',type=int,default=-1) # -1 or an index to select a perturabation subset to train on
 args = parser.parse_args()
-
-# default usage is
-# python train.py --GPU_id 0 --mname 'name' --epochs 1000 --bs 64 --lr 0.0001 --nconv 14 --nchan 32 --dist_dp 0.1 --nhiddens 3 --ndim 64 --classif_dp 0.1
 
 GPU_id = args.GPU_id
 mname = args.mname
@@ -54,9 +55,12 @@ print(device)
 epochs = args.epochs
 batch_size = args.bs
 lr = args.lr
+wdec = args.wdec
 
-lr_step = 25
+lr_step = 50
 lr_decay = 0.98
+
+print('ADAM optimizer with batch_size,lr,wdec,lr_step,lr_decay = ',batch_size,lr,wdec,lr_step,lr_decay)
 
 print('\nTRAINING '+mname+' for epochs,batch_size,lr')
 print(epochs,batch_size,lr)
@@ -90,17 +94,18 @@ train_loader,test_loader,train_refloader,test_refloader = import_data(data_path,
 nconv = args.nconv
 nchan = args.nchan
 dist_dp = args.dist_dp
-nhiddens = args.nhiddens
-ndim = args.ndim
+dist_sig = args.dist_sig
+ndim = [args.ndim0,args.ndim1]
 classif_dp = args.classif_dp
-print('\nBUILDING with settings nconv,nchan,dist_dp,nhiddens,ndim,classif_dp')
-print(nconv,nchan,dist_dp,nhiddens,ndim,classif_dp)
+classif_BN = args.classif_BN
+print('\nBUILDING with settings nconv,nchan,dist_dp,dist_sig,ndim,classif_dp,classif_BN')
+print(nconv,nchan,dist_dp,dist_sig,ndim,classif_dp,classif_BN)
 
-model = JNDnet(nconv=nconv,nchan=nchan,dist_dp=dist_dp,nhiddens=nhiddens,ndim=ndim,classif_dp=classif_dp,dev=device)
+model = JNDnet(nconv=nconv,nchan=nchan,dist_dp=dist_dp,dist_sig=dist_sig,ndim=ndim,classif_dp=classif_dp,classif_BN=classif_BN,dev=device)
 model.to(device)
 model.train()
 
-optimizer = torch.optim.Adam(model.parameters(),lr=lr)
+optimizer = torch.optim.Adam(model.parameters(),lr=lr,weight_decay=wdec)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer,lr_step,gamma=lr_decay)
 
 

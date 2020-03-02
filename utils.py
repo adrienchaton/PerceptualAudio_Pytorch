@@ -66,12 +66,16 @@ def import_data(data_path,subsets,Lsize,batch_size,train_ratio=0.8):
     train_y0 = torch.from_numpy(np.concatenate(train_y0)).float()
     train_y1 = torch.from_numpy(np.concatenate(train_y1)).float()
     train_labels = torch.from_numpy(np.concatenate(train_labels)).long()
+    train_ones = float(torch.sum(train_labels).item())
     
     test_y0 = torch.from_numpy(np.concatenate(test_y0)).float()
     test_y1 = torch.from_numpy(np.concatenate(test_y1)).float()
     test_labels = torch.from_numpy(np.concatenate(test_labels)).long()
+    test_ones = float(torch.sum(test_labels).item())
     
     print('train/test Lsize pairs amount to ',train_y0.shape[0],test_y0.shape[0])
+    print('train/test labels == one ("different") are ',int(train_ones),int(test_ones))
+    print('train/test ratio of labels == one ("different") are ',train_ones/train_y0.shape[0],test_ones/test_y0.shape[0])
     
     train_dataset = torch.utils.data.TensorDataset(train_y0,train_y1,train_labels)
     train_loader = torch.utils.data.DataLoader(train_dataset,batch_size=batch_size,shuffle=True,drop_last=True)
