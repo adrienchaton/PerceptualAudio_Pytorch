@@ -114,8 +114,10 @@ def acc_plot(plot_name,epoch_log,train_acc_log,test_acc_log):
 def eval_scores(model,train_refloader,test_refloader,device,report=True):
     train_pred = []
     train_labels = []
+    train_dist = []
     test_pred = []
     test_labels = []
+    test_dist = []
     
     with torch.no_grad():
         
@@ -129,7 +131,9 @@ def eval_scores(model,train_refloader,test_refloader,device,report=True):
             train_pred.append(class_pred.cpu().numpy())
             train_labels.append(labels.cpu().numpy())
             train_loss += loss.item()
+            train_dist.append(dist.squeeze().cpu().numpy())
         train_loss /= len(train_pred)
+        # loss is averaged in the minibatch "(reduction='mean')", then divided by the number of minibatches
         
         test_loss = 0
         for _,minibatch in enumerate(test_refloader):
@@ -141,12 +145,20 @@ def eval_scores(model,train_refloader,test_refloader,device,report=True):
             test_pred.append(class_pred.cpu().numpy())
             test_labels.append(labels.cpu().numpy())
             test_loss += loss.item()
+            test_dist.append(dist.squeeze().cpu().numpy())
         test_loss /= len(test_pred)
     
     train_pred = np.concatenate(train_pred)
     train_labels = np.concatenate(train_labels)
     test_pred = np.concatenate(test_pred)
     test_labels = np.concatenate(test_labels)
+    train_dist = np.concatenate(train_dist)
+    test_dist = np.concatenate(test_dist)
+    
+    train_dist_0 = np.mean(train_dist[np.where(train_labels==0)])
+    train_dist_1 = np.mean(train_dist[np.where(train_labels==1)])
+    test_dist_0 = np.mean(test_dist[np.where(test_labels==0)])
+    test_dist_1 = np.mean(test_dist[np.where(test_labels==1)])
     
     if report is True:
         print('TRAINING SET')
@@ -154,6 +166,7 @@ def eval_scores(model,train_refloader,test_refloader,device,report=True):
         print(classification_report(train_labels, train_pred, labels=[0,1], target_names=['same','different']))
     train_acc = accuracy_score(train_labels, train_pred)
     print('average training accuracy = ',train_acc)
+    print('average distance for train groudtruth 0,1 = ',train_dist_0,train_dist_1)
     
     if report is True:
         print('TEST SET')
@@ -161,6 +174,7 @@ def eval_scores(model,train_refloader,test_refloader,device,report=True):
         print(classification_report(test_labels, test_pred, labels=[0,1], target_names=['same','different']))
     test_acc = accuracy_score(test_labels, test_pred)
     print('average test accuracy = ',test_acc)
+    print('average distance for test groudtruth 0,1 = ',test_dist_0,test_dist_1)
     
     return train_acc,test_acc,train_loss,test_loss
 

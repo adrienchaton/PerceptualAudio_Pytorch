@@ -16,7 +16,7 @@ from models import JNDnet
 from utils import print_time,import_data,loss_plot,acc_plot,eval_scores
 
 
-np.random.seed(808) #606
+np.random.seed(12345)
 try:
     torch.backends.cudnn.benchmark = True
 except:
@@ -32,19 +32,19 @@ parser.add_argument('--mname',type=str,default='scratchJNDdefault')
 parser.add_argument('--epochs',type=int,default=2000)
 parser.add_argument('--bs',type=int,default=16)
 parser.add_argument('--lr',type=float,default=0.0001)
-parser.add_argument('--wdec',type=float,default=0.0001) # weight decay for optimizer
+parser.add_argument('--wdec',type=float,default=0.) # weight decay for optimizer
 parser.add_argument('--nconv',type=int,default=14) # lossnet convolution depth
 parser.add_argument('--nchan',type=int,default=32) # first channel dimension, to be doubled every 5 layers
 parser.add_argument('--dist_dp',type=float,default=0.05) # droupout ratio in lossnet
-parser.add_argument('--dist_sig',type=int,default=1) # 1 if applying sigmoid to the distance before classifier
-                                                     # or 2 if applying tanh
+parser.add_argument('--dist_act',type=str,default='no') # 'no' or 'sig' or 'tanh' or 'tshrink' or 'exp'
 parser.add_argument('--ndim0',type=int,default=16) # first hidden size of the classifier
 parser.add_argument('--ndim1',type=int,default=6) # second hidden size of the classifier
 parser.add_argument('--classif_dp',type=float,default=0.05) # droupout ratio in classifnet
-parser.add_argument('--classif_BN',type=int,default=1) # 1 if classifnet with batch-norm
+parser.add_argument('--classif_BN',type=int,default=2) # 1 if classifnet with batch-norm on 1st layer / 2 if on both hidden layers
 parser.add_argument('--Lsize',type=int,default=40000) # input signal size of lossnet
 parser.add_argument('--shift',type=int,default=1) # 1 if randomly shifting signals to encourage shift invariance
-parser.add_argument('--sub',type=int,default=-1) # -1 or an index to select a perturabation subset to train on
+parser.add_argument('--sub',type=int,default=-1) # -1 or an index to select a single perturabation subset to train on
+parser.add_argument('--minit',type=int,default=0) # 0 is using default pytorch setting, 1 is using random normal init
 args = parser.parse_args()
 
 GPU_id = args.GPU_id
@@ -94,14 +94,15 @@ train_loader,test_loader,train_refloader,test_refloader = import_data(data_path,
 nconv = args.nconv
 nchan = args.nchan
 dist_dp = args.dist_dp
-dist_sig = args.dist_sig
+dist_act = args.dist_act
 ndim = [args.ndim0,args.ndim1]
 classif_dp = args.classif_dp
 classif_BN = args.classif_BN
-print('\nBUILDING with settings nconv,nchan,dist_dp,dist_sig,ndim,classif_dp,classif_BN')
-print(nconv,nchan,dist_dp,dist_sig,ndim,classif_dp,classif_BN)
+minit = args.minit
+print('\nBUILDING with settings nconv,nchan,dist_dp,dist_act,ndim,classif_dp,classif_BN,minit')
+print(nconv,nchan,dist_dp,dist_act,ndim,classif_dp,classif_BN,minit)
 
-model = JNDnet(nconv=nconv,nchan=nchan,dist_dp=dist_dp,dist_sig=dist_sig,ndim=ndim,classif_dp=classif_dp,classif_BN=classif_BN,dev=device)
+model = JNDnet(nconv=nconv,nchan=nchan,dist_dp=dist_dp,dist_act=dist_act,ndim=ndim,classif_dp=classif_dp,classif_BN=classif_BN,dev=device,minit=minit)
 model.to(device)
 model.train()
 

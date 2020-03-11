@@ -15,7 +15,7 @@ import torch.nn.functional as F
 ### sub networks
 
 class lossnet(nn.Module):
-    def __init__(self,nconv=14,nchan=32,dp=0.1,dist_sig=1):
+    def __init__(self,nconv=14,nchan=32,dp=0.1,dist_act='no'):
         
         # base settings for 16kHz, applied to 22kHz
         # in the case of dropout, at training, forward over two same tensors does not give dist=0
@@ -23,7 +23,7 @@ class lossnet(nn.Module):
         
         super(lossnet, self).__init__()
         self.nconv = nconv
-        self.dist_sig = dist_sig
+        self.dist_act = dist_act
         self.convs = nn.ModuleList()
         self.chan_w = nn.ParameterList()
         for iconv in range(nconv):
@@ -40,15 +40,23 @@ class lossnet(nn.Module):
             else:
                 # last conv has no stride and no dropout
                 conv = [nn.Conv1d(chin,nchan,3,stride=1,padding=1),nn.BatchNorm1d(nchan),nn.LeakyReLU()]
+            
+            
             self.convs.append(nn.Sequential(*conv))
             self.chan_w.append(nn.Parameter(torch.randn(nchan),requires_grad=True))
         
-        if dist_sig==1:
+        if dist_act=='sig':
             self.act = nn.Sigmoid()
-        elif dist_sig==2:
+        elif dist_act=='tanh':
             self.act = nn.Tanh()
-        else:
+        elif dist_act=='tshrink':
+            self.act = nn.Tanhshrink()
+        elif dist_act=='exp':
+            self.act = None
+        elif dist_act=='no':
             self.act = nn.Identity()
+        else:
+            self.act = None
     
     def forward(self,xref,xper):
         # xref and xper are [batch,L]
@@ -62,7 +70,11 @@ class lossnet(nn.Module):
             wdiff = diff*self.chan_w[iconv]
             wdiff = torch.sum(torch.abs(wdiff),dim=(1,2))/diff.shape[0]/diff.shape[1] # average by batch and time dimensions
             dist = dist+wdiff
-        return self.act(dist)
+        if self.dist_act=='exp':
+            dist = torch.exp(torch.clamp(dist,max=20.))/(10**5) # exp(20) ~ 4*10**8
+        else:
+            dist = self.act(dist)
+        return dist
 
 class classifnet(nn.Module):
     def __init__(self,ndim=[16,6],dp=0.1,BN=1):
@@ -79,7 +91,9 @@ class classifnet(nn.Module):
             else:
                 fin = ndim[ilayer-1]
             MLP.append(nn.Linear(fin,ndim[ilayer]))
-            if BN==1:
+            if BN==1 and ilayer==0: # only 1st hidden layer
+                MLP.append(nn.BatchNorm1d(ndim[ilayer]))
+            elif BN==2: # the two hidden layers
                 MLP.append(nn.BatchNorm1d(ndim[ilayer]))
             MLP.append(nn.LeakyReLU())
             if dp!=0:
@@ -95,14 +109,29 @@ class classifnet(nn.Module):
 ###############################################################################
 ### full model
 
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1 or classname.find('BatchNorm') != -1 or classname.find('Linear') != -1:
+        torch.nn.init.normal_(m.weight)
+        # default Linear init is kaiming_uniform_ / default Conv1d init is a scaled uniform /  default BN init is constant gamma=1 and bias=0
+        try:
+            torch.nn.init.constant_(m.bias, 0.01)
+        except:
+            pass
+#    else:
+#        # they are only non-trainable classes eg. Relu,Dropout,Sequential ...
+#        print(classname)
+
 class JNDnet(nn.Module):
-    def __init__(self,nconv=14,nchan=32,dist_dp=0.1,dist_sig=1,ndim=[16,6],classif_dp=0.1,classif_BN=0,dev=torch.device('cpu')):
+    def __init__(self,nconv=14,nchan=32,dist_dp=0.1,dist_act='no',ndim=[16,6],classif_dp=0.1,classif_BN=0,dev=torch.device('cpu'),minit=0):
         super(JNDnet, self).__init__()
-        self.model_dist = lossnet(nconv=nconv,nchan=nchan,dp=dist_dp,dist_sig=dist_sig)
+        self.model_dist = lossnet(nconv=nconv,nchan=nchan,dp=dist_dp,dist_act=dist_act)
         self.model_classif = classifnet(ndim=ndim,dp=classif_dp,BN=classif_BN)
+        if minit==1:
+            self.model_dist.apply(weights_init) # custom weight initialization
+            self.model_classif.apply(weights_init)
         self.CE = nn.CrossEntropyLoss(reduction='mean')
         self.dev = dev
-#        self.apply(self.winit)
     
     def forward(self,xref,xper,labels):
         dist = self.model_dist.forward(xref,xper)
@@ -111,14 +140,6 @@ class JNDnet(nn.Module):
         class_prob = F.softmax(pred,dim=-1)
         class_pred = torch.argmax(class_prob,dim=-1)
         return loss,dist,class_pred,class_prob
-    
-#    def winit(self, m):
-#        if isinstance(m, nn.Conv1d) or isinstance(m, nn.Linear):
-#            nn.init.xavier_normal_(m.weight)
-#            if m.bias is not None:
-#                m.bias.data.fill_(0.01)
-#        else:
-#            print(m)
     
     def grad_check(self,minibatch,optimizer):
         xref = minibatch[0].to(self.dev)
