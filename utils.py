@@ -7,11 +7,7 @@ link: https://github.com/pranaymanocha/PerceptualAudio
 
 
 import torch
-import torch.nn.functional as F
 import numpy as np
-import librosa
-import librosa.display
-import glob
 import matplotlib
 matplotlib.rcParams['agg.path.chunksize'] = 10000
 matplotlib.use('Agg') # for the server
@@ -31,7 +27,7 @@ def print_time(s_duration):
 ###############################################################################
 ### data import
 
-def import_data(data_path,subsets,Lsize,batch_size,train_ratio=0.8):
+def import_data(data_path,subsets,Lsize,batch_size,train_ratio=0.8,rgains=False,sr=22050):
     train_y0 = []
     train_y1 = []
     train_labels = []
@@ -66,11 +62,12 @@ def import_data(data_path,subsets,Lsize,batch_size,train_ratio=0.8):
     train_y0 = torch.from_numpy(np.concatenate(train_y0)).float()
     train_y1 = torch.from_numpy(np.concatenate(train_y1)).float()
     train_labels = torch.from_numpy(np.concatenate(train_labels)).long()
-    train_ones = float(torch.sum(train_labels).item())
     
     test_y0 = torch.from_numpy(np.concatenate(test_y0)).float()
     test_y1 = torch.from_numpy(np.concatenate(test_y1)).float()
     test_labels = torch.from_numpy(np.concatenate(test_labels)).long()
+    
+    train_ones = float(torch.sum(train_labels).item())
     test_ones = float(torch.sum(test_labels).item())
     
     print('train/test Lsize pairs amount to ',train_y0.shape[0],test_y0.shape[0])
@@ -79,11 +76,30 @@ def import_data(data_path,subsets,Lsize,batch_size,train_ratio=0.8):
     
     train_dataset = torch.utils.data.TensorDataset(train_y0,train_y1,train_labels)
     train_loader = torch.utils.data.DataLoader(train_dataset,batch_size=batch_size,shuffle=True,drop_last=True)
-    train_refloader = torch.utils.data.DataLoader(train_dataset,batch_size=batch_size,shuffle=False,drop_last=False)
     
-    test_dataset = torch.utils.data.TensorDataset(test_y0,test_y1,test_labels)
-    test_loader = torch.utils.data.DataLoader(test_dataset,batch_size=batch_size,shuffle=True,drop_last=True)
-    test_refloader = torch.utils.data.DataLoader(test_dataset,batch_size=batch_size,shuffle=False,drop_last=False)
+    # if applying random gains, train_loader is scaled at every forward
+    # but train_refloader should have a fixed pre-scaling that is consistent, as for test data
+    if rgains is False:
+        train_refloader = torch.utils.data.DataLoader(train_dataset,batch_size=batch_size,shuffle=False,drop_last=False)
+        test_dataset = torch.utils.data.TensorDataset(test_y0,test_y1,test_labels)
+        test_loader = torch.utils.data.DataLoader(test_dataset,batch_size=batch_size,shuffle=True,drop_last=True)
+        test_refloader = torch.utils.data.DataLoader(test_dataset,batch_size=batch_size,shuffle=False,drop_last=False)
+    else:
+        print('reference trainset and test data have fixed random pre-scaling')
+        g = torch.zeros(train_y0.shape[0])
+        torch.nn.init.uniform_(g,rgains[0],rgains[1])
+        train_y0_scaled = train_y0*g.unsqueeze(1)
+        train_y1_scaled = train_y1*g.unsqueeze(1)
+        train_dataset_scaled = torch.utils.data.TensorDataset(train_y0_scaled,train_y1_scaled,train_labels)
+        train_refloader = torch.utils.data.DataLoader(train_dataset_scaled,batch_size=batch_size,shuffle=False,drop_last=False)
+        
+        g = torch.zeros(test_y0.shape[0])
+        torch.nn.init.uniform_(g,rgains[0],rgains[1])
+        test_y0_scaled = test_y0*g.unsqueeze(1)
+        test_y1_scaled = test_y1*g.unsqueeze(1)
+        test_dataset = torch.utils.data.TensorDataset(test_y0_scaled,test_y1_scaled,test_labels)
+        test_loader = torch.utils.data.DataLoader(test_dataset,batch_size=batch_size,shuffle=True,drop_last=True)
+        test_refloader = torch.utils.data.DataLoader(test_dataset,batch_size=batch_size,shuffle=False,drop_last=False)
     
     return train_loader,test_loader,train_refloader,test_refloader
 
@@ -123,29 +139,35 @@ def eval_scores(model,train_refloader,test_refloader,device,report=True):
         
         train_loss = 0
         for _,minibatch in enumerate(train_refloader):
-            xref = minibatch[0].to(device)
-            xper = minibatch[1].to(device)
-            labels  = minibatch[2].to(device)
-            loss,dist,class_pred,class_prob = model.forward(xref,xper,labels)
-            labels = labels.squeeze()
-            train_pred.append(class_pred.cpu().numpy())
-            train_labels.append(labels.cpu().numpy())
-            train_loss += loss.item()
-            train_dist.append(dist.squeeze().cpu().numpy())
+            try:
+                xref = minibatch[0].to(device)
+                xper = minibatch[1].to(device)
+                labels  = minibatch[2].to(device)
+                loss,dist,class_pred,class_prob = model.forward(xref,xper,labels)
+                labels = labels.squeeze()
+                train_pred.append(class_pred.cpu().numpy())
+                train_labels.append(labels.cpu().numpy())
+                train_loss += loss.item()
+                train_dist.append(dist.squeeze().cpu().numpy())
+            except:
+                print('passing one minibatch of evaluate train_refloader')
         train_loss /= len(train_pred)
         # loss is averaged in the minibatch "(reduction='mean')", then divided by the number of minibatches
         
         test_loss = 0
         for _,minibatch in enumerate(test_refloader):
-            xref = minibatch[0].to(device)
-            xper = minibatch[1].to(device)
-            labels  = minibatch[2].to(device)
-            loss,dist,class_pred,class_prob = model.forward(xref,xper,labels)
-            labels = labels.squeeze()
-            test_pred.append(class_pred.cpu().numpy())
-            test_labels.append(labels.cpu().numpy())
-            test_loss += loss.item()
-            test_dist.append(dist.squeeze().cpu().numpy())
+            try:
+                xref = minibatch[0].to(device)
+                xper = minibatch[1].to(device)
+                labels  = minibatch[2].to(device)
+                loss,dist,class_pred,class_prob = model.forward(xref,xper,labels)
+                labels = labels.squeeze()
+                test_pred.append(class_pred.cpu().numpy())
+                test_labels.append(labels.cpu().numpy())
+                test_loss += loss.item()
+                test_dist.append(dist.squeeze().cpu().numpy())
+            except:
+                print('passing one minibatch of evaluate test_refloader')
         test_loss /= len(test_pred)
     
     train_pred = np.concatenate(train_pred)
@@ -177,4 +199,12 @@ def eval_scores(model,train_refloader,test_refloader,device,report=True):
     print('average distance for test groudtruth 0,1 = ',test_dist_0,test_dist_1)
     
     return train_acc,test_acc,train_loss,test_loss
+
+
+
+
+
+
+
+
 

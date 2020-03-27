@@ -77,7 +77,7 @@ class lossnet(nn.Module):
         return dist
 
 class classifnet(nn.Module):
-    def __init__(self,ndim=[16,6],dp=0.1,BN=1):
+    def __init__(self,ndim=[16,6],dp=0.1,BN=1,classif_act='no'):
         
         # lossnet is pair of [batch,L] -> dist [batch]
         # classifnet goes dist [batch] -> pred [batch,2] == evaluate BCE with low-capacity
@@ -100,6 +100,10 @@ class classifnet(nn.Module):
                 MLP.append(nn.Dropout(p=dp))
         # last linear maps to binary class probabilities ; loss includes LogSoftmax
         MLP.append(nn.Linear(ndim[ilayer],2))
+        if classif_act=='sig':
+            MLP.append(nn.Sigmoid())
+        if classif_act=='tanh':
+            MLP.append(nn.Tanh())
         self.MLP = nn.Sequential(*MLP)
     
     def forward(self,dist):
@@ -123,10 +127,10 @@ def weights_init(m):
 #        print(classname)
 
 class JNDnet(nn.Module):
-    def __init__(self,nconv=14,nchan=32,dist_dp=0.1,dist_act='no',ndim=[16,6],classif_dp=0.1,classif_BN=0,dev=torch.device('cpu'),minit=0):
+    def __init__(self,nconv=14,nchan=32,dist_dp=0.1,dist_act='no',ndim=[16,6],classif_dp=0.1,classif_BN=0,classif_act='no',dev=torch.device('cpu'),minit=0):
         super(JNDnet, self).__init__()
         self.model_dist = lossnet(nconv=nconv,nchan=nchan,dp=dist_dp,dist_act=dist_act)
-        self.model_classif = classifnet(ndim=ndim,dp=classif_dp,BN=classif_BN)
+        self.model_classif = classifnet(ndim=ndim,dp=classif_dp,BN=classif_BN,classif_act=classif_act)
         if minit==1:
             self.model_dist.apply(weights_init) # custom weight initialization
             self.model_classif.apply(weights_init)
@@ -136,7 +140,7 @@ class JNDnet(nn.Module):
     def forward(self,xref,xper,labels):
         dist = self.model_dist.forward(xref,xper)
         pred = self.model_classif.forward(dist)
-        loss = self.CE(pred,labels.squeeze()) # pred is [batch,2] and labels [batch] long and binary
+        loss = self.CE(pred,labels.squeeze(1)) # pred is [batch,2] and labels [batch] long and binary
         class_prob = F.softmax(pred,dim=-1)
         class_pred = torch.argmax(class_prob,dim=-1)
         return loss,dist,class_pred,class_prob
