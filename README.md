@@ -25,7 +25,7 @@ best result so far is test loss around 0.557 on the subset 'dataset_linear'
 * dist_act = applies a non-linear activation to the distance output (e.g. some compression or expansion)
 * classif_BN = selects which hidden layers of the classifier has Batch-Normalization
 * classif_act = applies some compression to the classifier output (tends to reduce the overfitting)
-* randgain = applies random gains to the audio pairs for training (to encourage invariance to audio level and apply the model on audio datasets with various gains)
+* randgain = applies random gains to the audio pairs for training (to encourage invariance to audio level and apply the pretrained model on audio datasets with various gains)
 
 
 
