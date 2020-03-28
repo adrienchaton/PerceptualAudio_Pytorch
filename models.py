@@ -140,7 +140,8 @@ class JNDnet(nn.Module):
     def forward(self,xref,xper,labels):
         dist = self.model_dist.forward(xref,xper)
         pred = self.model_classif.forward(dist)
-        loss = self.CE(pred,labels.squeeze(1)) # pred is [batch,2] and labels [batch] long and binary
+#        loss = self.CE(pred,labels.squeeze(1)) # pred is [batch,2] and labels [batch] long and binary
+        loss = self.CE(pred,torch.squeeze(labels,-1))
         class_prob = F.softmax(pred,dim=-1)
         class_pred = torch.argmax(class_prob,dim=-1)
         return loss,dist,class_pred,class_prob
