@@ -68,7 +68,7 @@ class lossnet(nn.Module):
             xper = self.convs[iconv](xper)
             diff = (xref-xper).permute(0,2,1) # channel last
             wdiff = diff*self.chan_w[iconv]
-            wdiff = torch.sum(torch.abs(wdiff),dim=(1,2))/diff.shape[0]/diff.shape[1] # average by batch and time dimensions
+            wdiff = torch.sum(torch.abs(wdiff),dim=(1,2))/diff.shape[1]/diff.shape[2] # average by time and channel dimensions
             dist = dist+wdiff
         if self.dist_act=='exp':
             dist = torch.exp(torch.clamp(dist,max=20.))/(10**5) # exp(20) ~ 4*10**8
