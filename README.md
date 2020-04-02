@@ -19,8 +19,6 @@ each entry is [first signal, second signal, human label]
 
 target test loss is around 0.55 ~ 0.5
 
-best result so far is test loss around 0.557 on the subset 'dataset_linear'
-
 "experimental" features (as in the parser of train.py):
 * dist_act = applies a non-linear activation to the distance output (e.g. some compression or expansion)
 * classif_BN = selects which hidden layers of the classifier has Batch-Normalization
