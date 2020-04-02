@@ -17,7 +17,7 @@ from models import JNDnet
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--GPU_id',type=int,default=0)
-parser.add_argument('--mname',type=str,default='dataset_all')
+parser.add_argument('--mname',type=str,default='dataset_combined_linear')
 args = parser.parse_args()
 
 GPU_id = args.GPU_id
@@ -28,44 +28,30 @@ print(device)
 pretrained_path = './pretrained/'
 
 
-if mname=='dataset_all':
-    print('loading model for dataset_all ; trained with random time shift')
-    ## average training loss =  0.5330756419173184 / average training accuracy =  0.7538885486834048
-    ## average test loss =  0.5746318787898658 / average test accuracy =  0.710408307764928
+if mname=='dataset_combined_linear':
+    print('loading model for dataset_combined + dataset_linear ; trained with random time shift')
+    ## average training loss =  0.41721172072989415 / average training accuracy =  0.8919461403362048 / average distance for train groudtruth 0,1 =  0.667132 2.796383
+    ## average test loss =  0.5696099024886886 / average test accuracy =  0.736429038587312 / average distance for test groudtruth 0,1 =  0.9438109 2.3809838
     nconv = 14
-    nchan = 32
-    dist_dp = 0.
-    dist_act = 'tshrink'
-    ndim0 = 16
-    ndim1 = 6
-    classif_dp = 0.
-    classif_BN = 2
-    classif_act = 'no'
-
-if mname=='dataset_linear':
-    print('loading model for dataset_linear ; trained with random time shift and random gain')
-    ## average training loss =  0.4631005721286643 / average training accuracy =  0.8449570815450643
-    ## average test loss =  0.5571945954945462 / average test accuracy =  0.7481865284974093
-    nconv = 14
-    nchan = 8
+    nchan = 16
     dist_dp = 0.
     dist_act = 'no'
-    ndim0 = 4
-    ndim1 = 3
+    ndim0 = 8
+    ndim1 = 4
     classif_dp = 0.2
     classif_BN = 2
     classif_act = 'sig'
 
-if mname=='dataset_combined_linear':
-    print('loading model for dataset_combined_linear ; trained with random time shift and random gain')
-    ## average training loss =  0.4586653571157532 / average training accuracy =  0.8441916868779794
-    ## average test loss =  0.5662889395219585 / average test accuracy =  0.737083060824068
-    nconv = 18
-    nchan = 8
+if mname=='dataset_combined_linear_tshrink':
+    print('loading model for dataset_combined + dataset_linear ; trained with random time shift and tanhshrink distance activation')
+    ## average training loss =  0.3939998057374986 / average training accuracy =  0.917956009032366 / average distance for train groudtruth 0,1 =  0.07538187 0.81570065
+    ## average test loss =  0.564762340591097 / average test accuracy =  0.7393721386527142 / average distance for test groudtruth 0,1 =  0.1715624 0.6238277
+    nconv = 14
+    nchan = 16
     dist_dp = 0.
-    dist_act = 'no'
-    ndim0 = 4
-    ndim1 = 3
+    dist_act = 'tshrink'
+    ndim0 = 8
+    ndim1 = 4
     classif_dp = 0.2
     classif_BN = 2
     classif_act = 'sig'
